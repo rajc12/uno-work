@@ -4,7 +4,7 @@ import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
-import { getFirestore } from 'firebase/firestore'
+import { getFirestore } from 'firebase/firestore';
 
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
 export function initializeFirebase() {
@@ -15,8 +15,17 @@ export function initializeFirebase() {
     // without arguments.
     let firebaseApp;
     try {
-      // Attempt to initialize via Firebase App Hosting environment variables
-      firebaseApp = initializeApp();
+      // Check if we have environment variables (Vercel) or should use auto-init (Firebase Hosting)
+      const hasEnvVars = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
+                         process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+
+      if (hasEnvVars && process.env.NODE_ENV === "production") {
+        // Use environment variables directly for Vercel
+        firebaseApp = initializeApp(firebaseConfig);
+      } else {
+        // Attempt to initialize via Firebase App Hosting environment variables
+        firebaseApp = initializeApp();
+      }
     } catch (e) {
       // Only warn in production because it's normal to use the firebaseConfig to initialize
       // during development
