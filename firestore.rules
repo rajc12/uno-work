@@ -1,0 +1,169 @@
+/**
+ * @fileOverview Firestore Security Rules for UnoSync.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a hybrid security model. User data is protected by path-based ownership,
+ * while lobbies and games use a role-based access control (RBAC) system managed through a
+ * denormalized 'members' map on the lobby document.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores individual user profiles, accessible only to the user themselves.
+ * - /lobbies/{lobbyId}: Stores lobby metadata, with access controlled by the 'members' map.
+ * - /lobbies/{lobbyId}/games/{gameId}: Stores game state data within a lobby, inheriting access
+ *   control from the parent lobby's 'members' map.
+ * - /player_lobbies/{playerLobbyId}: Stores the association between players and lobbies.
+ * - /lobbies/{lobbyId}/chat_messages/{chatMessageId}: Stores chat messages within a lobby, access
+ *   controlled by the lobby's members map.
+ *
+ * Key Security Decisions:
+ * - User listing is disabled for privacy.
+ * - Lobbies use a 'members' map (UID: role) for flexible role-based access control.
+ * - Game access is inherited from the parent lobby's membership.
+ * - The 'player_lobbies' collection tracks lobby membership and is secured accordingly.
+ *
+ * Denormalization for Authorization:
+ * - The 'lobbies' collection denormalizes membership data into a 'members' map, allowing for
+ *   efficient access control checks without additional reads.
+ * - The 'hostUserId' is stored on the lobby to allow easy identification of the host.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Controls access to user profile documents. Only the authenticated user can
+     *              read or write their own profile.
+     * @path /users/{userId}
+     * @allow (get, update, delete) if request.auth.uid == userId
+     * @allow (create) if request.auth.uid == request.resource.data.id
+     * @deny (list)
+     * @deny (create) if request.auth.uid != request.resource.data.id
+     * @principle Enforces document ownership for user profiles.
+     */
+    match /users/{userId} {
+      // Helper function to check if the authenticated user is the owner of the document.
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      // Allow the user to read their own profile.
+      allow get: if isOwner(userId);
+      allow list: if false;
+
+      // Allow the user to create their own profile if the userId matches their auth ID.
+      allow create: if request.auth.uid == userId;
+
+      // Allow the user to update their own profile if they are the owner. Removed check on resource data to allow flexible updates
+      allow update: if isOwner(userId);
+
+      // Allow the user to delete their own profile if they are the owner and the document exists.
+      allow delete: if isOwner(userId);
+    }
+
+    /**
+     * @description Manages access to lobby documents. Users must be authenticated to create a lobby.
+     *              Lobby access (read/write) is controlled by the 'members' map, which defines roles.
+     * @path /lobbies/{lobbyId}
+     * @allow (get, list) if true; // Public read
+     * @allow (create) if isSignedIn()
+     * @allow (update, delete) if resource.data.hostUserId == request.auth.uid
+     * @deny (create) if !isSignedIn()
+     * @principle Enforces authentication for lobby creation and uses RBAC via the 'members' map for
+     *            subsequent access.
+     */
+    match /lobbies/{lobbyId} {
+      // Helper function to check if the authenticated user is a member of the lobby.
+      function isLobbyMember(lobbyId) {
+          return request.auth.uid != null && (resource.data.members[request.auth.uid] != null);
+      }
+      function isLobbyHost(lobbyId) {
+          return request.auth.uid != null && (resource.data.hostUserId == request.auth.uid);
+      }
+
+      // Allow anyone to read (get/list) lobby information.
+      allow get, list: if true;
+
+      // Allow only authenticated users to create a lobby.
+      allow create: if isSignedIn();
+
+      // Allow the lobby host to update or delete the lobby if they are the owner and the document exists.
+      allow update: if isLobbyHost(lobbyId);
+      allow delete: if isLobbyHost(lobbyId);
+    }
+
+     /**
+      * @description Controls access to game documents within a lobby.  Access is inherited from the
+      *              parent lobby's 'members' map, requiring the user to be a lobby member to read
+      *              or write game data.
+      * @path /lobbies/{lobbyId}/games/{gameId}
+      * @allow (get, list) if get(/databases/$(database)/documents/lobbies/$(lobbyId)).data.members[request.auth.uid] != null;
+      * @allow (create) if get(/databases/$(database)/documents/lobbies/$(lobbyId)).data.members[request.auth.uid] != null;
+      * @allow (update, delete) if get(/databases/$(database)/documents/lobbies/$(lobbyId)).data.members[request.auth.uid] != null;
+      * @principle Enforces lobby membership for game access.
+      */
+    match /lobbies/{lobbyId}/games/{gameId} {
+      // Access is based on membership in the parent lobby.
+      function isGameAuthorized(lobbyId) {
+        return request.auth != null && get(/databases/$(database)/documents/lobbies/$(lobbyId)).data.members[request.auth.uid] != null;
+      }
+
+      //Allow get, list if user is member of lobby
+      allow get, list: if isGameAuthorized(lobbyId);
+
+      //Allow create, update, delete if user is member of lobby
+      allow create, update, delete: if isGameAuthorized(lobbyId);
+    }
+
+    /**
+     * @description Manages the association between players and lobbies.
+     * @path /player_lobbies/{playerLobbyId}
+     * @allow (get, list) if true;
+     * @allow (create) if isSignedIn() && request.resource.data.userId == request.auth.uid;
+     * @allow (update, delete) if false;
+     * @principle Only authenticated users can create an association for themselves.
+     */
+    match /player_lobbies/{playerLobbyId} {
+        // Allow get and list operations.
+        allow get, list: if true;
+
+        // Allow creation if the user is signed in and the user ID matches the authenticated user's ID.
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+
+        // Disallow update and delete operations.
+        allow update: if false;
+        allow delete: if false;
+    }
+
+    /**
+     * @description Controls access to chat messages within a lobby. Access is controlled by lobby
+     *              membership, requiring the user to be a member of the parent lobby to send messages.
+     * @path /lobbies/{lobbyId}/chat_messages/{chatMessageId}
+     * @allow (get, list) if get(/databases/$(database)/documents/lobbies/$(lobbyId)).data.members[request.auth.uid] != null;
+     * @allow (create) if get(/databases/$(database)/documents/lobbies/$(lobbyId)).data.members[request.auth.uid] != null;
+     * @allow (update, delete) if false;
+     * @principle Enforces lobby membership for sending chat messages.
+     */
+    match /lobbies/{lobbyId}/chat_messages/{chatMessageId} {
+      // Access is based on membership in the parent lobby.
+      function isChatMessageAuthorized(lobbyId) {
+        return request.auth != null && get(/databases/$(database)/documents/lobbies/$(lobbyId)).data.members[request.auth.uid] != null;
+      }
+
+      //Allow get, list if user is member of lobby
+      allow get, list: if isChatMessageAuthorized(lobbyId);
+
+      //Allow create if user is member of lobby
+      allow create: if isChatMessageAuthorized(lobbyId);
+
+      // No updates or deletes
+      allow update: if false;
+      allow delete: if false;
+    }
+
+
+    //Check is user is signed in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+  }
+}

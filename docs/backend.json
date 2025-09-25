@@ -1,0 +1,278 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the UnoSync application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user entity."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user.",
+          "format": "email"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email"
+      ]
+    },
+    "Lobby": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Lobby",
+      "type": "object",
+      "description": "Represents a game lobby where players can join and play Uno.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the lobby entity."
+        },
+        "roomCode": {
+          "type": "string",
+          "description": "The room code that players use to join the lobby."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the lobby."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "The timestamp when the lobby was created.",
+          "format": "date-time"
+        },
+        "hostUserId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Lobby) The user ID of the lobby host."
+        }
+      },
+      "required": [
+        "id",
+        "roomCode",
+        "name",
+        "createdAt",
+        "hostUserId"
+      ]
+    },
+    "Game": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Game",
+      "type": "object",
+      "description": "Represents a Uno game being played within a lobby.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the game entity."
+        },
+        "lobbyId": {
+          "type": "string",
+          "description": "Reference to Lobby. (Relationship: Lobby 1:1 Game) The lobby ID this game belongs to."
+        },
+        "currentPlayerId": {
+          "type": "string",
+          "description": "Reference to User. The user ID of the current player."
+        },
+        "gameState": {
+          "type": "string",
+          "description": "The current state of the game (e.g., in progress, finished)."
+        },
+        "gameData": {
+          "type": "string",
+          "description": "The data for the game itself, it can be a json that will hold an object with the relevant information."
+        },
+        "startTime": {
+          "type": "string",
+          "description": "The timestamp when the game started.",
+          "format": "date-time"
+        },
+        "endTime": {
+          "type": "string",
+          "description": "The timestamp when the game ended.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "lobbyId",
+        "currentPlayerId",
+        "gameState",
+        "gameData",
+        "startTime"
+      ]
+    },
+    "PlayerLobby": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PlayerLobby",
+      "type": "object",
+      "description": "Represents the association between players and lobbies, tracking who is in which lobby.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the PlayerLobby entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User N:N Lobby) The user ID of the player."
+        },
+        "lobbyId": {
+          "type": "string",
+          "description": "Reference to Lobby. (Relationship: Lobby N:N User) The lobby ID the player is in."
+        },
+        "joinTime": {
+          "type": "string",
+          "description": "The timestamp when the player joined the lobby.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "lobbyId",
+        "joinTime"
+      ]
+    },
+    "ChatMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ChatMessage",
+      "type": "object",
+      "description": "Represents a chat message sent within a lobby.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the chat message entity."
+        },
+        "lobbyId": {
+          "type": "string",
+          "description": "Reference to Lobby. (Relationship: Lobby 1:N ChatMessage) The lobby ID the message was sent in."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N ChatMessage) The user ID of the message sender."
+        },
+        "message": {
+          "type": "string",
+          "description": "The content of the chat message."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp when the message was sent.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "lobbyId",
+        "userId",
+        "message",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles.  Path-based ownership ensures only the user can access their own profile.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/lobbies/{lobbyId}",
+        "definition": {
+          "entityName": "Lobby",
+          "schema": {
+            "$ref": "#/backend/entities/Lobby"
+          },
+          "description": "Stores lobby information. Includes a denormalized 'members' map (userId: role) for authorization independence, enabling simple rules for accessing lobby-related data.  Host user ID is also present to simplify administrative rules.",
+          "params": [
+            {
+              "name": "lobbyId",
+              "description": "The unique identifier for the lobby."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/lobbies/{lobbyId}/games/{gameId}",
+        "definition": {
+          "entityName": "Game",
+          "schema": {
+            "$ref": "#/backend/entities/Game"
+          },
+          "description": "Stores game information within a lobby. Access controlled by lobby membership, inherited from the parent 'lobbies/{lobbyId}' document's 'members' map.",
+          "params": [
+            {
+              "name": "lobbyId",
+              "description": "The unique identifier for the lobby this game belongs to."
+            },
+            {
+              "name": "gameId",
+              "description": "The unique identifier for the game."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/player_lobbies/{playerLobbyId}",
+        "definition": {
+          "entityName": "PlayerLobby",
+          "schema": {
+            "$ref": "#/backend/entities/PlayerLobby"
+          },
+          "description": "Represents the association between players and lobbies. This collection enables efficient querying of players in a lobby and simplifies security rules for lobby access. Contains the userId and lobbyId",
+          "params": [
+            {
+              "name": "playerLobbyId",
+              "description": "The unique identifier for the PlayerLobby entity."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/lobbies/{lobbyId}/chat_messages/{chatMessageId}",
+        "definition": {
+          "entityName": "ChatMessage",
+          "schema": {
+            "$ref": "#/backend/entities/ChatMessage"
+          },
+          "description": "Stores chat messages within a lobby. Access is controlled by lobby membership, checked against the parent 'lobbies/{lobbyId}' document's 'members' map.",
+          "params": [
+            {
+              "name": "lobbyId",
+              "description": "The unique identifier for the lobby the message was sent in."
+            },
+            {
+              "name": "chatMessageId",
+              "description": "The unique identifier for the chat message."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to support a multiplayer Uno game with real-time gameplay and a chat system. It prioritizes authorization independence by denormalizing data where needed, particularly for managing lobby membership and game access. The structure also supports secure list operations through structural segregation, ensuring that collections only contain documents with similar security requirements.\n\nAuthorization Independence is achieved through the `PlayerLobby` collection, which explicitly defines the relationship between users and lobbies. This allows for direct access control based on the presence of a document in this collection, eliminating the need for `get()` calls to parent documents.  Additionally, denormalization of lobby members into the `Lobbies` collection as a `members` map facilitates simpler rules without the need for complex lookups.\n\nSecure List Operations are supported by segregating data into collections with homogeneous security needs.  For example, `Lobbies` requires authentication to create, and `ChatMessages` require lobby membership to create.  This segregation, coupled with the explicit membership map, provides clear QAPs without needing filtering in the rules.\n\nThe structure also uses consistent access modeling with path-based ownership for user-specific data. For instance, if we needed to store user-specific game settings or preferences, we could do so under `/users/{userId}/settings`. Collaborative data is managed using the membership map pattern, as described above."
+  }
+}
