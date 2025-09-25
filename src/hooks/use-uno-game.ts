@@ -33,6 +33,7 @@ export type GameView = 'lobby' | 'game' | 'game-over';
 
 const INITIAL_HAND_SIZE = 7;
 const MIN_PLAYERS = 2;
+const MAX_PLAYERS = 4;
 
 export function useUnoGame(userId?: string) {
   const [lobbyId, setLobbyId] = useState<string | null>(null);
@@ -334,28 +335,64 @@ export function useUnoGame(userId?: string) {
 
   const createGame = async (playerName: string) => {
     if (!userId || !db) return;
-    const lobbiesRef = ref(db, 'lobbies');
-    const newLobbyRef = push(lobbiesRef);
-    const newLobbyId = newLobbyRef.key;
-    if (!newLobbyId) return;
 
-    setLobbyId(newLobbyId);
+    // Generate a unique 4-digit room code
+    let roomCode: string;
+    let attempts = 0;
+    const maxAttempts = 100;
+
+    do {
+      roomCode = Math.floor(1000 + Math.random() * 9000).toString();
+      attempts++;
+
+      // Check if room code already exists
+      const lobbyRef = ref(db, `lobbies/${roomCode}`);
+      const snapshot = await get(lobbyRef);
+
+      if (!snapshot.exists() || attempts >= maxAttempts) {
+        break;
+      }
+    } while (attempts < maxAttempts);
+
+    if (attempts >= maxAttempts) {
+      toast({ title: 'Error', description: 'Unable to generate unique room code', variant: 'destructive' });
+      return;
+    }
+
+    setLobbyId(roomCode);
 
     const hostPlayer: Player = { id: userId, name: playerName, hand: [], isAI: false };
 
-    await set(newLobbyRef, {
-      id: newLobbyId,
+    await set(ref(db, `lobbies/${roomCode}`), {
+      id: roomCode,
       createdAt: serverTimestamp(),
       hostId: userId,
       status: 'waiting',
     });
 
-    const playerRef = ref(db, `lobbies/${newLobbyId}/players/${userId}`);
+    const playerRef = ref(db, `lobbies/${roomCode}/players/${userId}`);
     await set(playerRef, hostPlayer);
   };
 
   const joinGame = async (roomCode: string, playerName: string) => {
     if (!userId || !db) return;
+
+    // Check current player count before joining
+    const lobbyRef = ref(db, `lobbies/${roomCode}`);
+    const lobbySnap = await get(lobbyRef);
+
+    if (!lobbySnap.exists()) {
+      toast({ title: 'Room Not Found', description: 'The room code you entered does not exist.', variant: 'destructive' });
+      return;
+    }
+
+    const lobbyData = lobbySnap.val();
+    const currentPlayerCount = Object.keys(lobbyData.players || {}).length;
+
+    if (currentPlayerCount >= MAX_PLAYERS) {
+      toast({ title: 'Room Full', description: 'This room is already full (maximum 4 players).', variant: 'destructive' });
+      return;
+    }
 
     const newPlayer: Player = { id: userId, name: playerName, hand: [], isAI: false };
     const playerRef = ref(db, `lobbies/${roomCode}/players/${userId}`);
@@ -366,6 +403,16 @@ export function useUnoGame(userId?: string) {
   const startGame = useCallback(
     async (players: Player[]) => {
       if (!lobbyId || !db) return;
+
+      // Validate player count (2-4 players)
+      if (players.length < MIN_PLAYERS || players.length > MAX_PLAYERS) {
+        toast({
+          title: 'Invalid Player Count',
+          description: `Games require ${MIN_PLAYERS}-${MAX_PLAYERS} players.`,
+          variant: 'destructive'
+        });
+        return;
+      }
 
       const shuffledDeck = shuffle(createDeck());
 
@@ -403,21 +450,21 @@ export function useUnoGame(userId?: string) {
 
       setView('game');
     },
-    [lobbyId, db]
+    [lobbyId, db, toast]
   );
 
   useEffect(() => {
-    if (lobbyId && lobbyPlayers && lobbyPlayers.length >= MIN_PLAYERS && db) {
-        const lobbyRef = ref(db, `lobbies/${lobbyId}`);
-        get(lobbyRef).then((lobbySnap) => {
-            const lobbyData = lobbySnap.val();
-            // Only the host should start the game, and only if it's waiting
-            if (lobbyData && lobbyData.hostId === userId && lobbyData.status === 'waiting') {
-                startGame(lobbyPlayers);
-            }
-        });
+    if (gameState?.status === 'finished' && view !== 'game-over') {
+      setView('game-over');
+    } else if (gameState?.status === 'active' && view !== 'game') {
+      setView('game');
+    } else if (!gameState && lobbyId && view !== 'lobby') {
+      // Stay in lobby view if we have a lobbyId but no game state yet
+      setView('lobby');
+    } else if (!lobbyId && view !== 'lobby') {
+      setView('lobby');
     }
-}, [lobbyId, lobbyPlayers, userId, db, startGame]);
+  }, [gameState, view, lobbyId]);
 
   const drawCard = useCallback(async () => {
     if (
@@ -447,19 +494,6 @@ export function useUnoGame(userId?: string) {
     db,
     lobbyId,
   ]);
-
-  useEffect(() => {
-    if (gameState?.status === 'finished' && view !== 'game-over') {
-      setView('game-over');
-    } else if (gameState?.status === 'active' && view !== 'game') {
-      setView('game');
-    } else if (!gameState && lobbyId && view !== 'lobby') {
-      // Stay in lobby view if we have a lobbyId but no game state yet
-      setView('lobby');
-    } else if (!lobbyId && view !== 'lobby') {
-      setView('lobby');
-    }
-  }, [gameState, view, lobbyId]);
 
   const resetGame = async () => {
     if (lobbyId && db) {

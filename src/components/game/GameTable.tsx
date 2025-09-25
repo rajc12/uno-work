@@ -7,7 +7,6 @@ import { UnoCard } from './UnoCard';
 import { ColorPicker } from './ColorPicker';
 import { GameInfo } from './GameInfo';
 import { GameActions } from './GameActions';
-import { GameChat } from './GameChat';
 
 interface GameTableProps {
   gameState: GameState;
@@ -60,7 +59,6 @@ export function GameTable({
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background p-4 flex flex-col perspective-1000">
       <GameInfo gameState={gameState} currentPlayer={currentPlayer} lobbyId={lobbyId} />
-      {lobbyId && <GameChat lobbyId={lobbyId} userId={userId} />}
 
       {opponents.map((opponent, index) => (
         <div key={opponent.id} className={`absolute ${getOpponentPosition(index, opponents.length)}`}>
