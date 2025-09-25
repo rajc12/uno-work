@@ -21,11 +21,13 @@ export function GameContainer() {
     joinGame,
     lobbyId,
     createGame,
+    startGame,
+    lobbyPlayers,
   } = useUnoGame(user?.uid);
 
   switch (view) {
     case 'lobby':
-      return <GameLobby onStartGame={createGame} onJoinGame={joinGame} lobbyId={lobbyId} />;
+      return <GameLobby onStartGame={createGame} onJoinGame={joinGame} lobbyId={lobbyId} lobbyPlayers={lobbyPlayers} userId={user?.uid} onStartActualGame={startGame} />;
     case 'game':
       if (gameState && user) {
         return (
@@ -35,20 +37,20 @@ export function GameContainer() {
             onDrawCard={drawCard}
             onSelectColor={selectColorForWild}
             wildCardToPlay={wildCardToPlay}
-            currentPlayer={currentPlayer}
+            currentPlayer={currentPlayer || null}
             isProcessingTurn={isProcessingTurn}
             userId={user.uid}
             lobbyId={lobbyId}
           />
         );
       }
-      return <GameLobby onStartGame={createGame} onJoinGame={joinGame} lobbyId={lobbyId} />;
+      return <GameLobby onStartGame={createGame} onJoinGame={joinGame} lobbyId={lobbyId} lobbyPlayers={lobbyPlayers} userId={user?.uid} onStartActualGame={startGame} />;
     case 'game-over':
         if(gameState && gameState.winner) {
             return <GameOverDialog winnerName={gameState.winner} onPlayAgain={resetGame} />;
         }
         return null; // or some fallback
     default:
-      return <GameLobby onStartGame={createGame} onJoinGame={joinGame} lobbyId={lobbyId} />;
+      return <GameLobby onStartGame={createGame} onJoinGame={joinGame} lobbyId={lobbyId} lobbyPlayers={lobbyPlayers} userId={user?.uid} onStartActualGame={startGame} />;
   }
 }

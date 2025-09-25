@@ -13,19 +13,26 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Copy } from 'lucide-react';
+import { Copy, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import type { Player } from '@/lib/uno-game';
 
 interface GameLobbyProps {
   onStartGame: (playerName: string) => void;
   onJoinGame: (roomCode: string, playerName: string) => void;
   lobbyId: string | null;
+  lobbyPlayers: Player[] | null;
+  userId: string | undefined;
+  onStartActualGame: (players: Player[]) => void;
 }
 
 export function GameLobby({
   onStartGame,
   onJoinGame,
   lobbyId,
+  lobbyPlayers,
+  userId,
+  onStartActualGame,
 }: GameLobbyProps) {
   const [playerName, setPlayerName] = useState('');
   const [joinCode, setJoinCode] = useState('');
@@ -43,6 +50,12 @@ export function GameLobby({
     }
   };
 
+  const handleStartGame = () => {
+    if (lobbyPlayers && lobbyPlayers.length >= 2) {
+      onStartActualGame(lobbyPlayers);
+    }
+  };
+
   const copyLobbyId = () => {
     if (lobbyId) {
       navigator.clipboard.writeText(lobbyId);
@@ -52,6 +65,9 @@ export function GameLobby({
       });
     }
   };
+
+  const canStartGame = lobbyPlayers && lobbyPlayers.length >= 2 && lobbyPlayers.length <= 4;
+  const isHost = lobbyPlayers?.find(p => p.id === userId)?.id === userId;
 
   if (lobbyId) {
     return (
@@ -74,9 +90,30 @@ export function GameLobby({
             </Button>
           </div>
         </CardContent>
-        <CardFooter>
-            <p className="text-sm text-muted-foreground text-center w-full">The game will start once enough players have joined.</p>
-        </CardFooter>
+        <CardContent className="text-center">
+          <div className="text-sm text-muted-foreground mb-4">
+            Players joined: {lobbyPlayers?.length || 0}/4
+          </div>
+          {isHost && canStartGame && (
+            <Button
+              onClick={handleStartGame}
+              className="w-full text-lg font-bold bg-green-600 hover:bg-green-700"
+            >
+              <Play className="w-5 h-5 mr-2" />
+              Start Game ({lobbyPlayers?.length} players)
+            </Button>
+          )}
+          {!canStartGame && isHost && (
+            <p className="text-sm text-muted-foreground">
+              Need at least 2 players to start
+            </p>
+          )}
+          {!isHost && (
+            <p className="text-sm text-muted-foreground">
+              Waiting for the host to start the game...
+            </p>
+          )}
+        </CardContent>
       </Card>
     );
   }

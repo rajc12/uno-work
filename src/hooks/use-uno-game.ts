@@ -518,5 +518,6 @@ export function useUnoGame(userId?: string) {
     joinGame,
     createGame,
     startGame,
+    lobbyPlayers,
   };
 }
