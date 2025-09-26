@@ -170,9 +170,15 @@ export function useUnoGame(userId?: string) {
               card: { color: card.color, value: card.value, isWild: card.isWild },
               amount: 2,
               targetPlayerId: nextPlayerIdD2
-            }
+            },
+            isProcessingTurn: true  // Set processing flag while choice is pending
           };
           steps = 1; // Don't skip turn yet, wait for choice
+          console.log('applyCardEffect: Set pendingDrawChoice for draw2', {
+            card: card,
+            nextPlayerId: nextPlayerIdD2,
+            pendingDrawChoice: newState.pendingDrawChoice
+          });
           toast({
             title: 'Draw 2!',
             description: `${
@@ -188,9 +194,15 @@ export function useUnoGame(userId?: string) {
               card: { color: card.color, value: card.value, isWild: card.isWild },
               amount: 4,
               targetPlayerId: nextPlayerIdD4
-            }
+            },
+            isProcessingTurn: true  // Set processing flag while choice is pending
           };
           steps = 1; // Don't skip turn yet, wait for choice
+          console.log('applyCardEffect: Set pendingDrawChoice for wildDraw4', {
+            card: card,
+            nextPlayerId: nextPlayerIdD4,
+            pendingDrawChoice: newState.pendingDrawChoice
+          });
           toast({
             title: 'Wild Draw 4!',
             description: `${
@@ -256,6 +268,12 @@ export function useUnoGame(userId?: string) {
         ...newState
       };
       delete stateToSave.pendingDrawChoice;
+      
+      console.log('handleDrawChoice: Saving state after choice', {
+        choice,
+        targetPlayerId,
+        newState: { ...newState, pendingDrawChoice: '[REMOVED]' }
+      });
       
       await set(gameRef, stateToSave);
     },

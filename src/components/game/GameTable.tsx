@@ -62,6 +62,16 @@ export function GameTable({
   // Check if current user needs to make a draw choice
   const needsToChoose = gameState.pendingDrawChoice?.targetPlayerId === userId;
 
+  // Debug logging
+  console.log('GameTable Debug:', {
+    userId,
+    currentPlayerId: currentPlayer?.id,
+    isProcessingTurn,
+    needsToChoose,
+    pendingDrawChoice: gameState.pendingDrawChoice,
+    isMyTurn
+  });
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background p-4 flex flex-col perspective-1000">
       <GameInfo gameState={gameState} currentPlayer={currentPlayer} lobbyId={lobbyId} />
@@ -103,7 +113,18 @@ export function GameTable({
         <ColorPicker onSelectColor={onSelectColor} />
       )}
 
+      {/* Show draw choice when it's the target player's turn to choose */}
       {needsToChoose && gameState.pendingDrawChoice && (
+        <DrawChoice
+          card={gameState.pendingDrawChoice.card as any}
+          amount={gameState.pendingDrawChoice.amount}
+          onDraw={() => onHandleDrawChoice('draw')}
+          onDare={() => onHandleDrawChoice('dare')}
+        />
+      )}
+
+      {/* Also show choice when processing but target player needs to choose */}
+      {isProcessingTurn && needsToChoose && gameState.pendingDrawChoice && (
         <DrawChoice
           card={gameState.pendingDrawChoice.card as any}
           amount={gameState.pendingDrawChoice.amount}
