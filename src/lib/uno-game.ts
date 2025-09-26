@@ -40,6 +40,12 @@ export type GameState = {
   winner: string | null;
   log: string[];
   isProcessingTurn?: boolean;
+  // Draw choice state
+  pendingDrawChoice?: {
+    card: Card;
+    amount: number;
+    targetPlayerId: string;
+  };
 };
 
 export function createDeck(): Card[] {

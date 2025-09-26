@@ -7,6 +7,7 @@ import { UnoCard } from './UnoCard';
 import { ColorPicker } from './ColorPicker';
 import { GameInfo } from './GameInfo';
 import { GameActions } from './GameActions';
+import { DrawChoice } from './DrawChoice';
 
 interface GameTableProps {
   gameState: GameState;
@@ -18,6 +19,7 @@ interface GameTableProps {
   isProcessingTurn: boolean;
   userId: string;
   lobbyId: string | null;
+  onHandleDrawChoice: (choice: 'draw' | 'dare') => void;
 }
 
 export function GameTable({
@@ -30,6 +32,7 @@ export function GameTable({
   isProcessingTurn,
   userId,
   lobbyId,
+  onHandleDrawChoice,
 }: GameTableProps) {
   const humanPlayer = gameState.players.find(p => p.id === userId);
   const opponents = gameState.players.filter(p => p.id !== userId);
@@ -55,6 +58,9 @@ export function GameTable({
   if (!humanPlayer) {
     return <div>Joining game...</div>
   }
+
+  // Check if current user needs to make a draw choice
+  const needsToChoose = gameState.pendingDrawChoice?.targetPlayerId === userId;
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background p-4 flex flex-col perspective-1000">
@@ -95,6 +101,15 @@ export function GameTable({
 
       {wildCardToPlay && currentPlayer?.id === userId && (
         <ColorPicker onSelectColor={onSelectColor} />
+      )}
+
+      {needsToChoose && gameState.pendingDrawChoice && (
+        <DrawChoice
+          card={gameState.pendingDrawChoice.card}
+          amount={gameState.pendingDrawChoice.amount}
+          onDraw={() => onHandleDrawChoice('draw')}
+          onDare={() => onHandleDrawChoice('dare')}
+        />
       )}
     </div>
   );

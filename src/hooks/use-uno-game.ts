@@ -164,24 +164,38 @@ export function useUnoGame(userId?: string) {
           break;
         case 'draw2':
           const nextPlayerIdD2 = nextTurn(newState).currentPlayerId;
-          newState = drawCards(nextPlayerIdD2, 2, newState);
-          steps = 2;
+          newState = {
+            ...newState,
+            pendingDrawChoice: {
+              card: card,
+              amount: 2,
+              targetPlayerId: nextPlayerIdD2
+            }
+          };
+          steps = 1; // Don't skip turn yet, wait for choice
           toast({
             title: 'Draw 2!',
             description: `${
               newState.players.find((p) => p.id === nextPlayerIdD2)?.name
-            } draws 2 cards and is skipped.`,
+            } must choose to draw 2 cards or do a dare.`,
           });
           break;
         case 'wildDraw4':
           const nextPlayerIdD4 = nextTurn(newState).currentPlayerId;
-          newState = drawCards(nextPlayerIdD4, 4, newState);
-          steps = 2;
+          newState = {
+            ...newState,
+            pendingDrawChoice: {
+              card: card,
+              amount: 4,
+              targetPlayerId: nextPlayerIdD4
+            }
+          };
+          steps = 1; // Don't skip turn yet, wait for choice
           toast({
             title: 'Wild Draw 4!',
             description: `${
               newState.players.find((p) => p.id === nextPlayerIdD4)?.name
-            } draws 4 cards and is skipped.`,
+            } must choose to draw 4 cards or do a dare.`,
           });
           break;
       }
@@ -196,6 +210,49 @@ export function useUnoGame(userId?: string) {
       return nextTurn(newState, steps);
     },
     [drawCards, nextTurn, toast]
+  );
+
+  const handleDrawChoice = useCallback(
+    async (choice: 'draw' | 'dare') => {
+      if (!gameState || !gameState.pendingDrawChoice || !gameRef) return;
+
+      const { card, amount, targetPlayerId } = gameState.pendingDrawChoice;
+
+      let newState: GameState = {
+        ...gameState,
+        pendingDrawChoice: undefined
+      };
+
+      if (choice === 'draw') {
+        newState = drawCards(targetPlayerId, amount, newState);
+        toast({
+          title: 'Cards Drawn',
+          description: `${
+            newState.players.find((p) => p.id === targetPlayerId)?.name
+          } drew ${amount} cards.`,
+        });
+      } else {
+        // Dare choice - for now just skip the turn
+        toast({
+          title: 'Dare Chosen!',
+          description: `${
+            newState.players.find((p) => p.id === targetPlayerId)?.name
+          } chose to do a dare! (Feature coming soon)`,
+        });
+      }
+
+      newState.log = [
+        ...(newState.log || []),
+        `${newState.players.find((p) => p.id === targetPlayerId)?.name} chose to ${choice === 'draw' ? `draw ${amount} cards` : 'do a dare'}.`,
+      ];
+
+      // Skip the target player's turn
+      newState = nextTurn(newState, 2);
+
+      newState.isProcessingTurn = false;
+      await set(gameRef, newState);
+    },
+    [gameState, drawCards, nextTurn, toast, gameRef]
   );
   
   const selectColorForWild = useCallback(
@@ -519,5 +576,6 @@ export function useUnoGame(userId?: string) {
     createGame,
     startGame,
     lobbyPlayers,
+    handleDrawChoice,
   };
 }

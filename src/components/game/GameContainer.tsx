@@ -23,6 +23,7 @@ export function GameContainer() {
     createGame,
     startGame,
     lobbyPlayers,
+    handleDrawChoice,
   } = useUnoGame(user?.uid);
 
   switch (view) {
@@ -41,6 +42,7 @@ export function GameContainer() {
             isProcessingTurn={isProcessingTurn}
             userId={user.uid}
             lobbyId={lobbyId}
+            onHandleDrawChoice={handleDrawChoice}
           />
         );
       }
