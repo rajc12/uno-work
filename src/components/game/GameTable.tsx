@@ -72,7 +72,8 @@ export function GameTable({
     needsToChoose,
     pendingAction: gameState.pendingAction ? '[PRESENT]' : 'undefined',
     targetPlayerId: gameState.pendingAction?.playerId,
-    isMyTurn
+    isMyTurn,
+    showDrawOrDare
   });
 
   // Force re-render when pendingAction changes
@@ -128,14 +129,6 @@ export function GameTable({
 
       {/* Show draw choice when it's the target player's turn to choose */}
       {needsToChoose && gameState.pendingAction && (
-        <DrawOrDareDialog
-          drawCount={gameState.pendingAction.drawCount}
-          onChoice={onDrawChoice}
-        />
-      )}
-
-      {/* Also show choice when processing but target player needs to choose */}
-      {isProcessingTurn && needsToChoose && gameState.pendingAction && (
         <DrawOrDareDialog
           drawCount={gameState.pendingAction.drawCount}
           onChoice={onDrawChoice}
