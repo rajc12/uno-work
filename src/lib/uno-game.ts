@@ -42,7 +42,11 @@ export type GameState = {
   isProcessingTurn?: boolean;
   // Draw choice state
   pendingDrawChoice?: {
-    card: Card;
+    card: {
+      color: string;
+      value: string;
+      isWild: boolean;
+    };
     amount: number;
     targetPlayerId: string;
   };

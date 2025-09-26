@@ -105,7 +105,7 @@ export function GameTable({
 
       {needsToChoose && gameState.pendingDrawChoice && (
         <DrawChoice
-          card={gameState.pendingDrawChoice.card}
+          card={gameState.pendingDrawChoice.card as any}
           amount={gameState.pendingDrawChoice.amount}
           onDraw={() => onHandleDrawChoice('draw')}
           onDare={() => onHandleDrawChoice('dare')}

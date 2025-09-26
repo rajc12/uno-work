@@ -167,7 +167,7 @@ export function useUnoGame(userId?: string) {
           newState = {
             ...newState,
             pendingDrawChoice: {
-              card: card,
+              card: { color: card.color, value: card.value, isWild: card.isWild },
               amount: 2,
               targetPlayerId: nextPlayerIdD2
             }
@@ -185,7 +185,7 @@ export function useUnoGame(userId?: string) {
           newState = {
             ...newState,
             pendingDrawChoice: {
-              card: card,
+              card: { color: card.color, value: card.value, isWild: card.isWild },
               amount: 4,
               targetPlayerId: nextPlayerIdD4
             }
@@ -220,7 +220,7 @@ export function useUnoGame(userId?: string) {
 
       let newState: GameState = {
         ...gameState,
-        pendingDrawChoice: undefined
+        pendingDrawChoice: undefined  // Remove the pending choice immediately
       };
 
       if (choice === 'draw') {
