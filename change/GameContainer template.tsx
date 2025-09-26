@@ -21,31 +21,22 @@ export function GameContainer() {
     joinGame,
     lobbyId,
     createGame,
-    startGame,
-    lobbyPlayers,
     handleDrawChoice,
   } = useUnoGame(user?.uid);
 
   switch (view) {
     case 'lobby':
-      return <GameLobby onStartGame={createGame} onJoinGame={joinGame} lobbyId={lobbyId} lobbyPlayers={lobbyPlayers} userId={user?.uid} onStartActualGame={startGame} />;
+      return <GameLobby onStartGame={createGame} onJoinGame={joinGame} lobbyId={lobbyId} />;
     case 'game':
       if (gameState && user) {
-        console.log('GameContainer: Rendering GameTable with pendingAction', {
-          pendingAction: gameState.pendingAction ? '[PRESENT]' : 'undefined',
-          targetPlayerId: gameState.pendingAction?.playerId,
-          userId: user.uid,
-          isProcessingTurn
-        });
         return (
           <GameTable
-            key={`game-${gameState?.pendingAction?.playerId || 'normal'}`}
             gameState={gameState}
             onPlayCard={playCard}
             onDrawCard={drawCard}
             onSelectColor={selectColorForWild}
             wildCardToPlay={wildCardToPlay}
-            currentPlayer={currentPlayer || null}
+            currentPlayer={currentPlayer}
             isProcessingTurn={isProcessingTurn}
             userId={user.uid}
             lobbyId={lobbyId}
@@ -53,13 +44,13 @@ export function GameContainer() {
           />
         );
       }
-      return <GameLobby onStartGame={createGame} onJoinGame={joinGame} lobbyId={lobbyId} lobbyPlayers={lobbyPlayers} userId={user?.uid} onStartActualGame={startGame} />;
+      return <GameLobby onStartGame={createGame} onJoinGame={joinGame} lobbyId={lobbyId} />;
     case 'game-over':
         if(gameState && gameState.winner) {
             return <GameOverDialog winnerName={gameState.winner} onPlayAgain={resetGame} />;
         }
         return null; // or some fallback
     default:
-      return <GameLobby onStartGame={createGame} onJoinGame={joinGame} lobbyId={lobbyId} lobbyPlayers={lobbyPlayers} userId={user?.uid} onStartActualGame={startGame} />;
+      return <GameLobby onStartGame={createGame} onJoinGame={joinGame} lobbyId={lobbyId} />;
   }
 }

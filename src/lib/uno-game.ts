@@ -40,15 +40,11 @@ export type GameState = {
   winner: string | null;
   log: string[];
   isProcessingTurn?: boolean;
-  // Draw choice state
-  pendingDrawChoice?: {
-    card: {
-      color: string;
-      value: string;
-      isWild: boolean;
-    };
-    amount: number;
-    targetPlayerId: string;
+  // Pending action system for draw/dare choices
+  pendingAction?: {
+    playerId: string;
+    type: 'draw-or-dare';
+    drawCount: number;
   };
 };
 

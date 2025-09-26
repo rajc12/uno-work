@@ -5,7 +5,6 @@ import {
   type GameState,
   type Player,
   type Card,
-  type WildCard,
   type Color,
   createDeck,
   shuffle,
@@ -33,7 +32,6 @@ export type GameView = 'lobby' | 'game' | 'game-over';
 
 const INITIAL_HAND_SIZE = 7;
 const MIN_PLAYERS = 2;
-const MAX_PLAYERS = 4;
 
 export function useUnoGame(userId?: string) {
   const [lobbyId, setLobbyId] = useState<string | null>(null);
@@ -43,29 +41,13 @@ export function useUnoGame(userId?: string) {
   const db = useDatabase();
 
   const gameRef = useMemoFirebase(
-    () => {
-      if (!lobbyId || !db) return null;
-      try {
-        return ref(db, `lobbies/${lobbyId}/game`);
-      } catch (error) {
-        console.warn('Failed to create game ref:', error);
-        return null;
-      }
-    },
+    () => (lobbyId && db ? ref(db, `lobbies/${lobbyId}/game`) : null),
     [lobbyId, db]
   );
   const { data: gameState } = useObjectValue<GameState>(gameRef);
 
   const lobbyPlayersRef = useMemoFirebase(
-    () => {
-      if (!lobbyId || !db) return null;
-      try {
-        return query(ref(db, `lobbies/${lobbyId}/players`));
-      } catch (error) {
-        console.warn('Failed to create lobby players ref:', error);
-        return null;
-      }
-    },
+    () => (lobbyId && db ? query(ref(db, `lobbies/${lobbyId}/players`)) : null),
     [lobbyId, db]
   );
   const { data: lobbyPlayers } = useList<Player>(lobbyPlayersRef);
@@ -116,7 +98,7 @@ export function useUnoGame(userId?: string) {
         if (card) drawnCards.push(card);
       }
 
-      const newHand = [...player.hand, ...drawnCards];
+      const newHand = [...(player.hand || []), ...drawnCards];
       const newPlayers = [...players];
       newPlayers[playerIndex] = { ...player, hand: newHand };
 
@@ -138,18 +120,17 @@ export function useUnoGame(userId?: string) {
         (p) => p.id === newState.currentPlayerId
       );
       if (!currentPlayer) return newState;
-
-      console.log('applyCardEffect: Called with card:', card, 'currentPlayer:', currentPlayer.id);
-
+  
       let steps = 1;
-
+      const nextPlayerId = nextTurn(newState).currentPlayerId;
+  
       switch (card.value) {
         case 'skip':
           steps = 2;
           toast({
             title: 'Player Skipped!',
             description: `${
-              newState.players.find((p) => p.id === nextTurn(newState).currentPlayerId)
+              newState.players.find((p) => p.id === nextTurn(newState, 2).currentPlayerId)
                 ?.name
             } was skipped.`,
           });
@@ -165,99 +146,53 @@ export function useUnoGame(userId?: string) {
           });
           break;
         case 'draw2':
-          const nextPlayerIdD2 = nextTurn(newState).currentPlayerId;
-          newState = {
-            ...newState,
-            pendingAction: {
-              playerId: nextPlayerIdD2,
-              type: 'draw-or-dare',
-              drawCount: 2,
-            },
-            isProcessingTurn: true  // Set processing flag while choice is pending
+          newState.pendingAction = {
+            playerId: nextPlayerId,
+            type: 'draw-or-dare',
+            drawCount: 2,
           };
-          steps = 0; // Don't skip turn yet, wait for choice
-          console.log('applyCardEffect: Set pendingAction for draw2', {
-            card: card,
-            nextPlayerId: nextPlayerIdD2,
-            pendingAction: newState.pendingAction
-          });
           toast({
             title: 'Draw 2!',
             description: `${
-              newState.players.find((p) => p.id === nextPlayerIdD2)?.name
-            } must choose to draw 2 cards or do a dare.`,
+              newState.players.find((p) => p.id === nextPlayerId)?.name
+            } must draw or dare.`,
           });
+          // Don't advance the turn here, wait for player's choice
+          steps = 0;
           break;
         case 'wildDraw4':
-          const nextPlayerIdD4 = nextTurn(newState).currentPlayerId;
-          newState = {
-            ...newState,
-            pendingAction: {
-              playerId: nextPlayerIdD4,
-              type: 'draw-or-dare',
-              drawCount: 4,
-            },
-            isProcessingTurn: true  // Set processing flag while choice is pending
+          newState.pendingAction = {
+            playerId: nextPlayerId,
+            type: 'draw-or-dare',
+            drawCount: 4,
           };
-          steps = 0; // Don't skip turn yet, wait for choice
-          console.log('applyCardEffect: Set pendingAction for wildDraw4', {
-            card: card,
-            nextPlayerId: nextPlayerIdD4,
-            pendingAction: newState.pendingAction
-          });
           toast({
             title: 'Wild Draw 4!',
             description: `${
-              newState.players.find((p) => p.id === nextPlayerIdD4)?.name
-            } must choose to draw 4 cards or do a dare.`,
+              newState.players.find((p) => p.id === nextPlayerId)?.name
+            } must draw or dare.`,
           });
+          // Don't advance the turn here, wait for player's choice
+          steps = 0;
           break;
       }
-
+  
       newState.log = [
         ...(newState.log || []),
         `${currentPlayer.name} played a ${
           card.color !== 'wild' ? card.color : ''
         } ${card.value}.`,
       ];
-
-      return nextTurn(newState, steps);
-    },
-    [drawCards, nextTurn, toast]
-  );
-
-  const handleDrawChoice = useCallback(
-    async (choseDraw: boolean) => {
-      if (!gameState || !gameState.pendingAction || !gameRef) return;
-
-      const { playerId, drawCount } = gameState.pendingAction;
-      let newState = { ...gameState };
-
-      if (choseDraw) {
-        newState = drawCards(playerId, drawCount, newState);
-        toast({
-          title: 'Cards Drawn!',
-          description: `${newState.players.find(p => p.id === playerId)?.name} drew ${drawCount} cards.`,
-        });
-        // After drawing, the turn is skipped
-        newState = nextTurn(newState);
-      } else {
-        // Chose Dare
-        toast({
-          title: 'Dare Chosen!',
-          description: `${newState.players.find(p => p.id === playerId)?.name} chose dare! Their turn.`,
-        });
-        // The player who chose dare now takes their turn, but doesn't skip the next player
-        newState.currentPlayerId = playerId;
+      
+      // Only advance turn if there's no pending action
+      if (steps > 0) {
+        return nextTurn(newState, steps);
       }
-
-      newState.pendingAction = undefined;
-      newState = nextTurn(newState);
-      await set(gameRef, newState);
+      return newState;
     },
-    [gameState, drawCards, nextTurn, toast, gameRef]
+    [nextTurn, toast]
   );
-  
+
   const selectColorForWild = useCallback(
     async (color: Color) => {
       if (!wildCardToPlay || !gameState || !userId || !gameRef) return;
@@ -265,18 +200,13 @@ export function useUnoGame(userId?: string) {
       const player = gameState.players.find((p) => p.id === userId);
       if (!player) return;
 
-      const cardToPlay: Card = {
-        color: 'wild',
-        value: wildCardToPlay.value as 'wild' | 'wildDraw4',
-        isWild: true,
-        chosenColor: color
-      };
+      const cardToPlay: Card = { ...wildCardToPlay, chosenColor: color };
 
       const playerIndex = gameState.players.findIndex((p) => p.id === userId);
       if (playerIndex === -1) return;
 
       const newPlayers = [...gameState.players];
-      const newHand = newPlayers[playerIndex].hand.filter(
+      const newHand = (newPlayers[playerIndex].hand || []).filter(
         (c) => !(c.value === wildCardToPlay.value && c.color === wildCardToPlay.color)
       );
       newPlayers[playerIndex] = { ...newPlayers[playerIndex], hand: newHand };
@@ -303,15 +233,9 @@ export function useUnoGame(userId?: string) {
       } else {
         newState = applyCardEffect(cardToPlay, newState);
       }
+      
       newState.isProcessingTurn = false;
-      
-      // Create a clean state object without pendingAction for Firebase
-      const stateToSave: GameState = {
-        ...newState
-      };
-      delete stateToSave.pendingAction;
-      
-      await set(gameRef, stateToSave);
+      await set(gameRef, newState);
     },
     [wildCardToPlay, gameState, userId, toast, gameRef, applyCardEffect]
   );
@@ -326,8 +250,6 @@ export function useUnoGame(userId?: string) {
         !gameRef
       )
         return;
-
-      console.log('playCard: Called with card:', card, 'userId:', userId, 'currentPlayerId:', gameState.currentPlayerId);
 
       const player = gameState.players.find((p) => p.id === userId);
       if (!player) return;
@@ -354,8 +276,8 @@ export function useUnoGame(userId?: string) {
       const playerIndex = gameState.players.findIndex((p) => p.id === userId);
       const newPlayers = [...gameState.players];
       
-      const cardInHandIndex = newPlayers[playerIndex].hand.findIndex(c => c.color === card.color && c.value === card.value);
-      const newHand = [...newPlayers[playerIndex].hand];
+      const cardInHandIndex = (newPlayers[playerIndex].hand || []).findIndex(c => c.color === card.color && c.value === card.value);
+      const newHand = [...(newPlayers[playerIndex].hand || [])];
       if(cardInHandIndex > -1) {
         newHand.splice(cardInHandIndex, 1);
       }
@@ -371,10 +293,10 @@ export function useUnoGame(userId?: string) {
       if (newHand.length === 0) {
         newState = {
           ...newState,
-          players: newPlayers,
           status: 'finished',
           winner: player.name,
           log: [...(newState.log || []), `${player.name} wins!`],
+          players: newPlayers, // Keep players data on win
           isProcessingTurn: false,
         };
       } else {
@@ -385,41 +307,9 @@ export function useUnoGame(userId?: string) {
           });
         }
         newState = applyCardEffect(card, newState);
-
-        // Debug logging to track state changes
-        console.log('playCard: After applyCardEffect', {
-          newState: {
-            ...newState,
-            pendingAction: newState.pendingAction ? '[PRESENT]' : 'undefined'
-          },
-          currentPlayerId: newState.currentPlayerId,
-          targetPlayerId: newState.pendingAction?.playerId,
-          userId: userId
-        });
-
-        // Don't override isProcessingTurn if it was set by applyCardEffect
-        // Only set it to false if there was no pendingAction created
-        if (!newState.pendingAction) {
-          newState.isProcessingTurn = false;
-        }
       }
-
-      // Create a clean state object without pendingAction for Firebase
-      const stateToSave: GameState = {
-        ...newState
-      };
-      delete stateToSave.pendingAction;
-
-      console.log('playCard: Saving final state', {
-        stateToSave: {
-          ...stateToSave,
-          pendingAction: stateToSave.pendingAction ? '[REMOVED]' : 'undefined'
-        },
-        originalPendingAction: newState.pendingAction ? '[PRESENT]' : 'undefined'
-      });
-
-      await set(gameRef, stateToSave);
-      console.log('playCard: State saved to Firebase successfully');
+      newState.isProcessingTurn = false;
+      await set(gameRef, newState);
     },
     [
       gameState,
@@ -430,70 +320,62 @@ export function useUnoGame(userId?: string) {
       gameRef,
       db,
       lobbyId,
-      selectColorForWild,
     ]
   );
 
+  const handleDrawChoice = async (choseDraw: boolean) => {
+    if (!gameState || !gameState.pendingAction || !gameRef) return;
+    
+    const { playerId, drawCount } = gameState.pendingAction;
+    let newState = { ...gameState };
+
+    if (choseDraw) {
+        newState = drawCards(playerId, drawCount, newState);
+        toast({
+            title: 'Cards Drawn!',
+            description: `${newState.players.find(p => p.id === playerId)?.name} drew ${drawCount} cards.`,
+        });
+        // After drawing, the turn is skipped
+        newState = nextTurn(newState); 
+    } else {
+        // Chose Dare
+        toast({
+            title: 'Dare Chosen!',
+            description: `${newState.players.find(p => p.id === playerId)?.name} chose dare! Their turn.`,
+        });
+        // The player who chose dare now takes their turn, but doesn't skip the next player
+        newState.currentPlayerId = playerId;
+    }
+    
+    newState.pendingAction = null;
+    newState = nextTurn(newState);
+    await set(gameRef, newState);
+  };
+
   const createGame = async (playerName: string) => {
     if (!userId || !db) return;
+    const lobbiesRef = ref(db, 'lobbies');
+    const newLobbyRef = push(lobbiesRef);
+    const newLobbyId = newLobbyRef.key;
+    if (!newLobbyId) return;
 
-    // Generate a unique 4-digit room code
-    let roomCode: string;
-    let attempts = 0;
-    const maxAttempts = 100;
-
-    do {
-      roomCode = Math.floor(1000 + Math.random() * 9000).toString();
-      attempts++;
-
-      // Check if room code already exists
-      const lobbyRef = ref(db, `lobbies/${roomCode}`);
-      const snapshot = await get(lobbyRef);
-
-      if (!snapshot.exists() || attempts >= maxAttempts) {
-        break;
-      }
-    } while (attempts < maxAttempts);
-
-    if (attempts >= maxAttempts) {
-      toast({ title: 'Error', description: 'Unable to generate unique room code', variant: 'destructive' });
-      return;
-    }
-
-    setLobbyId(roomCode);
+    setLobbyId(newLobbyId);
 
     const hostPlayer: Player = { id: userId, name: playerName, hand: [], isAI: false };
 
-    await set(ref(db, `lobbies/${roomCode}`), {
-      id: roomCode,
+    await set(newLobbyRef, {
+      id: newLobbyId,
       createdAt: serverTimestamp(),
       hostId: userId,
       status: 'waiting',
     });
 
-    const playerRef = ref(db, `lobbies/${roomCode}/players/${userId}`);
+    const playerRef = ref(db, `lobbies/${newLobbyId}/players/${userId}`);
     await set(playerRef, hostPlayer);
   };
 
   const joinGame = async (roomCode: string, playerName: string) => {
     if (!userId || !db) return;
-
-    // Check current player count before joining
-    const lobbyRef = ref(db, `lobbies/${roomCode}`);
-    const lobbySnap = await get(lobbyRef);
-
-    if (!lobbySnap.exists()) {
-      toast({ title: 'Room Not Found', description: 'The room code you entered does not exist.', variant: 'destructive' });
-      return;
-    }
-
-    const lobbyData = lobbySnap.val();
-    const currentPlayerCount = Object.keys(lobbyData.players || {}).length;
-
-    if (currentPlayerCount >= MAX_PLAYERS) {
-      toast({ title: 'Room Full', description: 'This room is already full (maximum 4 players).', variant: 'destructive' });
-      return;
-    }
 
     const newPlayer: Player = { id: userId, name: playerName, hand: [], isAI: false };
     const playerRef = ref(db, `lobbies/${roomCode}/players/${userId}`);
@@ -504,16 +386,6 @@ export function useUnoGame(userId?: string) {
   const startGame = useCallback(
     async (players: Player[]) => {
       if (!lobbyId || !db) return;
-
-      // Validate player count (2-4 players)
-      if (players.length < MIN_PLAYERS || players.length > MAX_PLAYERS) {
-        toast({
-          title: 'Invalid Player Count',
-          description: `Games require ${MIN_PLAYERS}-${MAX_PLAYERS} players.`,
-          variant: 'destructive'
-        });
-        return;
-      }
 
       const shuffledDeck = shuffle(createDeck());
 
@@ -551,8 +423,51 @@ export function useUnoGame(userId?: string) {
 
       setView('game');
     },
-    [lobbyId, db, toast]
+    [lobbyId, db]
   );
+  
+  useEffect(() => {
+    if (lobbyId && lobbyPlayers && lobbyPlayers.length >= MIN_PLAYERS && db) {
+        const lobbyRef = ref(db, `lobbies/${lobbyId}`);
+        get(lobbyRef).then((lobbySnap) => {
+            const lobbyData = lobbySnap.val();
+            // Only the host should start the game, and only if it's waiting
+            if (lobbyData && lobbyData.hostId === userId && lobbyData.status === 'waiting') {
+                startGame(lobbyPlayers);
+            }
+        });
+    }
+}, [lobbyId, lobbyPlayers, userId, db, startGame]);
+
+  const drawCard = useCallback(async () => {
+    if (
+      !gameState ||
+      gameState.status !== 'active' ||
+      gameState.currentPlayerId !== userId ||
+      isProcessingTurn ||
+      !gameRef ||
+      !db ||
+      gameState.pendingAction
+    )
+      return;
+
+    await set(ref(db, `lobbies/${lobbyId}/game/isProcessingTurn`), true);
+
+    let newState = drawCards(userId, 1, gameState);
+    newState = nextTurn(newState);
+    newState.isProcessingTurn = false;
+
+    await set(gameRef, newState);
+  }, [
+    gameState,
+    userId,
+    isProcessingTurn,
+    drawCards,
+    nextTurn,
+    gameRef,
+    db,
+    lobbyId,
+  ]);
 
   useEffect(() => {
     if (gameState?.status === 'finished' && view !== 'game-over') {
@@ -567,44 +482,9 @@ export function useUnoGame(userId?: string) {
     }
   }, [gameState, view, lobbyId]);
 
-  const drawCard = useCallback(async () => {
-    if (
-      !gameState ||
-      gameState.status !== 'active' ||
-      gameState.currentPlayerId !== userId ||
-      isProcessingTurn ||
-      !gameRef ||
-      !db
-    )
-      return;
-
-    await set(ref(db, `lobbies/${lobbyId}/game/isProcessingTurn`), true);
-
-    let newState = drawCards(userId, 1, gameState);
-    newState = nextTurn(newState);
-    newState.isProcessingTurn = false;
-
-    // Create a clean state object without pendingAction for Firebase
-    const stateToSave: GameState = {
-      ...newState
-    };
-    delete stateToSave.pendingAction;
-
-    await set(gameRef, stateToSave);
-  }, [
-    gameState,
-    userId,
-    isProcessingTurn,
-    drawCards,
-    nextTurn,
-    gameRef,
-    db,
-    lobbyId,
-  ]);
-
   const resetGame = async () => {
     if (lobbyId && db) {
-      const lobbyRef = ref(db, `lobbies/${lobbyId}`);
+      const lobbyRef = ref(db, 'lobbies', lobbyId);
       await remove(lobbyRef);
     }
     setLobbyId(null);
@@ -625,7 +505,6 @@ export function useUnoGame(userId?: string) {
     joinGame,
     createGame,
     startGame,
-    lobbyPlayers,
     handleDrawChoice,
   };
 }

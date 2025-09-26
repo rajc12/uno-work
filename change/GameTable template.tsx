@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from 'react';
 import { type GameState, type Player, type Card, type Color } from '@/lib/uno-game';
 import { PlayerHand } from './PlayerHand';
 import { Opponent } from './Opponent';
@@ -8,6 +7,7 @@ import { UnoCard } from './UnoCard';
 import { ColorPicker } from './ColorPicker';
 import { GameInfo } from './GameInfo';
 import { GameActions } from './GameActions';
+import { GameChat } from './GameChat';
 import { DrawOrDareDialog } from './DrawOrDareDialog';
 
 interface GameTableProps {
@@ -54,40 +54,17 @@ export function GameTable({
     return '';
   };
   
-  const isMyTurn = currentPlayer?.id === userId && !isProcessingTurn;
+  const isMyTurn = currentPlayer?.id === userId && !isProcessingTurn && !gameState.pendingAction;
   const showDrawOrDare = gameState.pendingAction?.type === 'draw-or-dare' && gameState.pendingAction.playerId === userId;
 
   if (!humanPlayer) {
     return <div>Joining game...</div>
   }
 
-  // Check if current user needs to make a draw choice
-  const needsToChoose = gameState.pendingAction?.playerId === userId;
-
-  // Debug logging
-  console.log('GameTable Debug:', {
-    userId,
-    currentPlayerId: currentPlayer?.id,
-    isProcessingTurn,
-    needsToChoose,
-    pendingAction: gameState.pendingAction ? '[PRESENT]' : 'undefined',
-    targetPlayerId: gameState.pendingAction?.playerId,
-    isMyTurn
-  });
-
-  // Force re-render when pendingAction changes
-  useEffect(() => {
-    console.log('GameTable: pendingAction changed', gameState.pendingAction);
-  }, [gameState.pendingAction]);
-
-  // Force re-render when isProcessingTurn changes
-  useEffect(() => {
-    console.log('GameTable: isProcessingTurn changed', isProcessingTurn);
-  }, [isProcessingTurn]);
-
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background p-4 flex flex-col perspective-1000">
       <GameInfo gameState={gameState} currentPlayer={currentPlayer} lobbyId={lobbyId} />
+      {lobbyId && <GameChat lobbyId={lobbyId} userId={userId} />}
 
       {opponents.map((opponent, index) => (
         <div key={opponent.id} className={`absolute ${getOpponentPosition(index, opponents.length)}`}>
@@ -125,18 +102,9 @@ export function GameTable({
       {wildCardToPlay && currentPlayer?.id === userId && (
         <ColorPicker onSelectColor={onSelectColor} />
       )}
-
-      {/* Show draw choice when it's the target player's turn to choose */}
-      {needsToChoose && gameState.pendingAction && (
-        <DrawOrDareDialog
-          drawCount={gameState.pendingAction.drawCount}
-          onChoice={onDrawChoice}
-        />
-      )}
-
-      {/* Also show choice when processing but target player needs to choose */}
-      {isProcessingTurn && needsToChoose && gameState.pendingAction && (
-        <DrawOrDareDialog
+      
+      {showDrawOrDare && gameState.pendingAction && (
+        <DrawOrDareDialog 
           drawCount={gameState.pendingAction.drawCount}
           onChoice={onDrawChoice}
         />
