@@ -250,7 +250,14 @@ export function useUnoGame(userId?: string) {
       newState = nextTurn(newState, 2);
 
       newState.isProcessingTurn = false;
-      await set(gameRef, newState);
+      
+      // Create a clean state object without pendingDrawChoice for Firebase
+      const stateToSave: GameState = {
+        ...newState
+      };
+      delete stateToSave.pendingDrawChoice;
+      
+      await set(gameRef, stateToSave);
     },
     [gameState, drawCards, nextTurn, toast, gameRef]
   );
@@ -301,7 +308,14 @@ export function useUnoGame(userId?: string) {
         newState = applyCardEffect(cardToPlay, newState);
       }
       newState.isProcessingTurn = false;
-      await set(gameRef, newState);
+      
+      // Create a clean state object without pendingDrawChoice for Firebase
+      const stateToSave: GameState = {
+        ...newState
+      };
+      delete stateToSave.pendingDrawChoice;
+      
+      await set(gameRef, stateToSave);
     },
     [wildCardToPlay, gameState, userId, toast, gameRef, applyCardEffect]
   );
@@ -375,7 +389,14 @@ export function useUnoGame(userId?: string) {
         newState = applyCardEffect(card, newState);
       }
       newState.isProcessingTurn = false;
-      await set(gameRef, newState);
+      
+      // Create a clean state object without pendingDrawChoice for Firebase
+      const stateToSave: GameState = {
+        ...newState
+      };
+      delete stateToSave.pendingDrawChoice;
+      
+      await set(gameRef, stateToSave);
     },
     [
       gameState,
@@ -540,7 +561,13 @@ export function useUnoGame(userId?: string) {
     newState = nextTurn(newState);
     newState.isProcessingTurn = false;
 
-    await set(gameRef, newState);
+    // Create a clean state object without pendingDrawChoice for Firebase
+    const stateToSave: GameState = {
+      ...newState
+    };
+    delete stateToSave.pendingDrawChoice;
+
+    await set(gameRef, stateToSave);
   }, [
     gameState,
     userId,
