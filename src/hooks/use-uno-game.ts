@@ -421,15 +421,12 @@ export function useUnoGame(userId?: string) {
           userId: userId
         });
 
-        // Save state immediately after applyCardEffect to ensure pendingDrawChoice is persisted
-        const immediateSave: GameState = {
-          ...newState
-        };
-        delete immediateSave.pendingDrawChoice; // Remove for Firebase but keep in memory
-        await set(gameRef, immediateSave);
+        // Don't override isProcessingTurn if it was set by applyCardEffect
+        // Only set it to false if there was no pendingDrawChoice created
+        if (!newState.pendingDrawChoice) {
+          newState.isProcessingTurn = false;
+        }
       }
-
-      newState.isProcessingTurn = false;
 
       // Create a clean state object without pendingDrawChoice for Firebase
       const stateToSave: GameState = {
@@ -437,7 +434,16 @@ export function useUnoGame(userId?: string) {
       };
       delete stateToSave.pendingDrawChoice;
 
+      console.log('playCard: Saving final state', {
+        stateToSave: {
+          ...stateToSave,
+          pendingDrawChoice: stateToSave.pendingDrawChoice ? '[REMOVED]' : 'undefined'
+        },
+        originalPendingDrawChoice: newState.pendingDrawChoice ? '[PRESENT]' : 'undefined'
+      });
+
       await set(gameRef, stateToSave);
+      console.log('playCard: State saved to Firebase successfully');
     },
     [
       gameState,

@@ -31,8 +31,15 @@ export function GameContainer() {
       return <GameLobby onStartGame={createGame} onJoinGame={joinGame} lobbyId={lobbyId} lobbyPlayers={lobbyPlayers} userId={user?.uid} onStartActualGame={startGame} />;
     case 'game':
       if (gameState && user) {
+        console.log('GameContainer: Rendering GameTable with pendingDrawChoice', {
+          pendingDrawChoice: gameState.pendingDrawChoice ? '[PRESENT]' : 'undefined',
+          targetPlayerId: gameState.pendingDrawChoice?.targetPlayerId,
+          userId: user.uid,
+          isProcessingTurn
+        });
         return (
           <GameTable
+            key={`game-${gameState?.pendingDrawChoice?.targetPlayerId || 'normal'}`}
             gameState={gameState}
             onPlayCard={playCard}
             onDrawCard={drawCard}

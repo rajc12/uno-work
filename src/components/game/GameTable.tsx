@@ -79,6 +79,11 @@ export function GameTable({
     console.log('GameTable: pendingDrawChoice changed', gameState.pendingDrawChoice);
   }, [gameState.pendingDrawChoice]);
 
+  // Force re-render when isProcessingTurn changes
+  useEffect(() => {
+    console.log('GameTable: isProcessingTurn changed', isProcessingTurn);
+  }, [isProcessingTurn]);
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background p-4 flex flex-col perspective-1000">
       <GameInfo gameState={gameState} currentPlayer={currentPlayer} lobbyId={lobbyId} />
