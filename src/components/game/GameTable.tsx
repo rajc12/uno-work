@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from 'react';
 import { type GameState, type Player, type Card, type Color } from '@/lib/uno-game';
 import { PlayerHand } from './PlayerHand';
 import { Opponent } from './Opponent';
@@ -68,9 +69,15 @@ export function GameTable({
     currentPlayerId: currentPlayer?.id,
     isProcessingTurn,
     needsToChoose,
-    pendingDrawChoice: gameState.pendingDrawChoice,
+    pendingDrawChoice: gameState.pendingDrawChoice ? '[PRESENT]' : 'undefined',
+    targetPlayerId: gameState.pendingDrawChoice?.targetPlayerId,
     isMyTurn
   });
+
+  // Force re-render when pendingDrawChoice changes
+  useEffect(() => {
+    console.log('GameTable: pendingDrawChoice changed', gameState.pendingDrawChoice);
+  }, [gameState.pendingDrawChoice]);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background p-4 flex flex-col perspective-1000">

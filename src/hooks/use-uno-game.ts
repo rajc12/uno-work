@@ -139,6 +139,8 @@ export function useUnoGame(userId?: string) {
       );
       if (!currentPlayer) return newState;
 
+      console.log('applyCardEffect: Called with card:', card, 'currentPlayer:', currentPlayer.id);
+
       let steps = 1;
 
       switch (card.value) {
@@ -349,6 +351,8 @@ export function useUnoGame(userId?: string) {
       )
         return;
 
+      console.log('playCard: Called with card:', card, 'userId:', userId, 'currentPlayerId:', gameState.currentPlayerId);
+
       const player = gameState.players.find((p) => p.id === userId);
       if (!player) return;
 
@@ -405,15 +409,34 @@ export function useUnoGame(userId?: string) {
           });
         }
         newState = applyCardEffect(card, newState);
+
+        // Debug logging to track state changes
+        console.log('playCard: After applyCardEffect', {
+          newState: {
+            ...newState,
+            pendingDrawChoice: newState.pendingDrawChoice ? '[PRESENT]' : 'undefined'
+          },
+          currentPlayerId: newState.currentPlayerId,
+          targetPlayerId: newState.pendingDrawChoice?.targetPlayerId,
+          userId: userId
+        });
+
+        // Save state immediately after applyCardEffect to ensure pendingDrawChoice is persisted
+        const immediateSave: GameState = {
+          ...newState
+        };
+        delete immediateSave.pendingDrawChoice; // Remove for Firebase but keep in memory
+        await set(gameRef, immediateSave);
       }
+
       newState.isProcessingTurn = false;
-      
+
       // Create a clean state object without pendingDrawChoice for Firebase
       const stateToSave: GameState = {
         ...newState
       };
       delete stateToSave.pendingDrawChoice;
-      
+
       await set(gameRef, stateToSave);
     },
     [
